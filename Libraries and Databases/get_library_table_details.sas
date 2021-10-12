@@ -49,7 +49,7 @@ data work.libinfo;
   /* Define a query to search for any tables */
   /* associated with the library in Metadata. */
 
-  tabobj="omsobj:PhysicalTable?PhysicalTable[TablePackage/SASLibrary[@Id='"||lib_id||"']]";
+  tabobj="omsobj:PhysicalTable?PhysicalTable[TablePackage/SASLibrary[@Id='"||lib_id||"']] or [TablePackage/DatabaseSchema/UsedByPackages/SASLibrary[@Id='"||lib_id||"']]";
 
   /* Count how many associations exist. */
 
