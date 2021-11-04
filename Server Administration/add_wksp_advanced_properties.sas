@@ -12,7 +12,7 @@
 options metaserver="meta.demo.sas.com"
         metaport=8561
         metauser="sasadm@saspw"
-        metapass="Orion123";
+        metapass="password";
 
 /* Tell the program which server you would like to update. */
 %let servername=SASApp - Workspace Server;
