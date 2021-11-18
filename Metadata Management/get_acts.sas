@@ -83,7 +83,7 @@ if act_count > 0 then do n=1 to act_count;
     ident_count=metadata_getnasn(ace_uri,"Identities",1,ident_uri);
     put "NOTE: Access Control Entry " o "has " ident_count "identities.";
     if ident_count > 0 then do q=1 to ident_count;
-	  rc=metadata_getnasn(ace_uri,"Identities",q,ident_uri);
+      rc=metadata_getnasn(ace_uri,"Identities",q,ident_uri);
       rc=metadata_getattr(ident_uri,"DisplayName",ident_name);
       if ident_name="" then rc=metadata_getattr(ident_uri,"Name",ident_name);
       put "NOTE: Identity " q ": " ident_name;
