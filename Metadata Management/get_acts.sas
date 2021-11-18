@@ -32,7 +32,7 @@ act_obj="omsobj:AccessControlTemplate?@Id contains '.'";
 act_count=metadata_resolve(act_obj,type,id);
 
 /* Write notes to log. */
-put "NOTE: Found " act_count "Access Control Templates.";
+put "NOTE: Found " act_count "Access Control Templates (ACTs).";
 if act_count > 0 then put "NOTE: Checking for Associations.";
 
 /* For each ACT, get their name. */
@@ -75,7 +75,7 @@ if act_count > 0 then do n=1 to act_count;
 /* Check for Access Control Entry associations to the ACT. */
 
   ace_count=metadata_getnasn(act_uri,"AccessControlItems",1,ace_uri);
-  if ace_count > -1 then put "NOTE: Found " ace_count "Access Control Entries in the ACT " act_name;
+  if ace_count > -1 then put "NOTE: Found " ace_count "Access Control Entries (ACE) in the ACT " act_name;
 
 /* For each entry, get it's identities and the assigned permissions. */
   if ace_count > 0 then do o=1 to ace_count;
@@ -88,7 +88,7 @@ if act_count > 0 then do n=1 to act_count;
       if ident_name="" then rc=metadata_getattr(ident_uri,"Name",ident_name);
       put "NOTE: Identity " q ": " ident_name;
     end;
-    put "NOTE: The permissions in the ACT are:";
+    put "NOTE: The permissions in the ACE are:";
     perm_count=metadata_getnasn(ace_uri,"Permissions",1,perm_uri);
     if perm_count > 0 then do p=1 to perm_count;
       rc=metadata_getnasn(ace_uri,"Permissions",p,perm_uri);
