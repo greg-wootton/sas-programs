@@ -112,6 +112,7 @@ function usage {
     echo " --files                              Tell the script to export individual objects the content path supplied, rather than folders."
     echo " --endpoint                           Specify instead of --content-path to export all the item results of a given endpoint, e.g. /reports/reports"
     echo " --chunksize                          How many objects to include in each package when using --endpoint. Default is 10."
+    echo " --insecure, -k                       Do not fail due to certificate validation errors."
     echo "  -h, --help                          Show this usage information."
     echo ""
 }
@@ -124,6 +125,8 @@ if [ "$1" = "" ]
     usage
     exit 1
 fi
+
+insec=""
 
 # Read in the arguments provided and store them to environment variables.
 while [ "$1" != "" ]
@@ -177,6 +180,8 @@ while [ "$1" != "" ]
                                 ;;
     --chunksize )               shift
                                 chunksize=$1
+                                ;;
+    --insecure | -k )           insec=1
                                 ;;
     -h | --help )               usage
                                 exit
@@ -690,6 +695,10 @@ function export {
 
             # Get total qty
             count=$(jq '.count' "$content")
+            if [ "$count" = "null" ]
+                then
+                count=$(jq '.items | length' "$content")
+            fi
 
             if [ "$count" -le 0 ]
                 then
@@ -1276,6 +1285,10 @@ function sasadmcheck {
         then
         echo "ERROR: $admincli is not a valid executable. Use --admin-cli-path to specify the path to the sas-admin binary."
         exit 2
+    fi
+    if [ "$insec" = "1" ]
+    then
+        admincli="$admincli -k"
     fi
 }
 
