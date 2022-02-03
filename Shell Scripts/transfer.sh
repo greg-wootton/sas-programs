@@ -1306,9 +1306,9 @@ function outputcheck {
 
 # Define a function "plugincheck" to check that a named plugin is installed, and throw an error if it isn't.
 function plugincheck {
-    RC=$($admincli plugins list | cut -f1 -d' ' | grep $plugin)
+    RC=$($admincli plugins list | cut -f1 -d' ' | grep -c $plugin)
     
-if [ "$RC" != "$plugin" ]
+if [ "$RC" -lt "1" ]
     then
     echo "ERROR: $plugin plugin is not installed. Run $admincli plugins install --repo SAS $plugin"
     exit 2
