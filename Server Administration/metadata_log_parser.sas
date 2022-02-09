@@ -182,7 +182,6 @@ proc append base=work.summary data=raw_summary; run;
 proc append base=work.open_conn data=raw_import_open; run;
 proc append base=work.closed_conn data=raw_import_closed; run;
 
-
 %end;
 
 %mend metaaudit;
@@ -195,6 +194,12 @@ proc append base=work.closed_conn data=raw_import_closed; run;
 proc print data=summary;
 title "Summary of Logs and Connections";
 run;
+
+PROC MEANS data=work.open_conn max noobs noprint;
+  class user;
+  var date;
+  output out=lastlog max=date;
+RUN;
 
 PROC SQL noprint;
   create view opconbyhr as
@@ -217,6 +222,9 @@ PROC SQL noprint;
   create view redir_summary as
     select date, host, count(hour) as redirects
     from redirects group by date,host;
+  create view lastlogin as
+    select * 
+    from lastlog where _TYPE_ = 1;
 quit;
 
 title "Unclosed Connections by Application for Log Range";
@@ -262,3 +270,6 @@ compute after;
 host= 'Total';
 endcomp;
 RUN;
+
+title "Most Recent Login Date by User";
+proc print data=work.lastlogin noobs; var user date; run;
