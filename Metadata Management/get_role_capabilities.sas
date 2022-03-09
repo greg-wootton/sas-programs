@@ -24,6 +24,7 @@ length ig_uri $ 38
 type $ 13
 id $ 17
 role_name $ 100
+role_display_name $ 256
 ace_uri
 obj_uri $ 43
 obj_name $ 100
@@ -52,6 +53,7 @@ if role_count > 0 then do n=1 to role_count;
 
   rc=metadata_getnobj(obj,n,ig_uri);
   rc=metadata_getattr(ig_uri,"Name",role_name);
+  rc=metadata_getattr(ig_uri,"DisplayName",role_display_name);
 
   /* Count capabilities defined. */
 
@@ -77,8 +79,11 @@ if role_count > 0 then do n=1 to role_count;
       parent_rc=metadata_getnasn(partree_uri,"ParentTree",1,partree_uri);
     end;
   output;
-  end;
+  end; /* ready to get next capability */
+      else output; /* if there were no capabilities selected, just output the role name */
+      /* initialize variables */
+      call missing (ig_uri,type,id,role_name,role_display_name,ace_uri,obj_uri,obj_name,path,folder_name,partree_uri,tree_uri);
 end;
-keep role_name path obj_name;
+keep role_name role_display_name path obj_name;
 /* Return only role, capability and capability context path to dataset. */
 run;
