@@ -42,7 +42,10 @@ if user_count > 0 then do n=1 to user_count;
   end;
   /* if no logins are found, output an observation */
   /* of only the user defined in Metadata. */
-  else output;
+  else do;
+    call missing(user_id);
+    output;
+  end;
 end;
 
 /* Drop all the variables not needed. */
