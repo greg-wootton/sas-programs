@@ -17,10 +17,10 @@ data work.libinfo;
 /*declare and initialize variables */
   length
     type user schema $ 20
-    lib_uri lib_name app_uri app_name schema_uri login_uri
-    dbms_uri dbms_name conn_uri prop_uri datasrc $ 50
+    lib_uri lib_name app_uri app_name schema_uri login_uri dom_uri
+    dbms_uri dbms_name conn_uri prop_uri datasrc authdomain $ 50
     id $ 17;
-  keep lib_name app_name user schema dbms_name datasrc;
+  keep lib_name app_name user schema dbms_name datasrc authdomain;
   call missing(of _character_);
 
   obj="omsobj:SASLibrary?@IsDBMSLibname = '1'";
@@ -51,6 +51,8 @@ data work.libinfo;
   rc=metadata_getnasn(dbms_uri,"SourceConnections",1,conn_uri);
   rc=metadata_getnasn(conn_uri,"Properties",1,prop_uri);
   rc=metadata_getattr(prop_uri,"DefaultValue",datasrc);
+  rc=metadata_getnasn(conn_uri,"Domain",1,dom_uri);
+  rc=metadata_getattr(dom_uri,"Name",authdomain);
   output; /* Push results to table  */
 
   end;
