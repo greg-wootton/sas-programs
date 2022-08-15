@@ -1121,6 +1121,9 @@ function endpointexportdownload {
 # This will attempt against every .json file in the provided path.
 function importfrompath {
 
+# Confirm sas-admin is available.
+sasadmcheck
+
 # Confirm tgtprofile is set.
 var=tgtprofile; varcheck
 var=imppath; varcheck
