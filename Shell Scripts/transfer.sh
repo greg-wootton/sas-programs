@@ -291,9 +291,6 @@ function expcheck {
                 echo "NOTE: A folder ID $folderid was supplied. Checking this ID for objects not contained in the export package."
                 echo "$(date +"%F %T %Z") NOTE: A folder ID $folderid was supplied. Checking this ID for objects not contained in the export package." >> "${expfile%/*}/${ename}_expchck.log"
 
-                # Confirm we can run the sas-admin cli
-                sasadmcheck
-
                 # Confirm the folder plugin is installed.
                 plugin=folders; plugincheck
                 
@@ -305,7 +302,7 @@ function expcheck {
                 
                 # Create an array that is all of the member IDs that are of type "child" for the supplied folder id. 
                 # This omits "reference" types like history and favorites that are not exported.
-                mapfile -t contentarray < <($admincli --quiet --profile "$srcprofile" --output json folders list-members --id "$folderid" --recursive | jq -r '.items[] | select (.type == "child" ) | .uri')
+                mapfile -t contentarray < <($admincli $insecopt --quiet --profile "$srcprofile" --output json folders list-members --id "$folderid" --recursive | jq -r '.items[] | select (.type == "child" ) | .uri')
                 echo "NOTE: Found ${#contentarray[@]} child objects in the folder."
                 # For each URI in the array, check to see if it is present as an object in the package.
                 for object in "${contentarray[@]}"
@@ -342,9 +339,6 @@ function impcheck {
     var=srcprofile; varcheck
     var=tgtprofile; varcheck
 
-    # Confirm we can run the sas-admin cli
-    sasadmcheck
-    
     # Confirm the folder plugin is installed.
     plugin=folders; plugincheck
     
@@ -381,7 +375,7 @@ function impcheck {
                 # Create a list of objects in the target into a text file
                 echo "NOTE: Pulling recursive list of members of $contentpath from target into $tmpfile"
             
-                $admincli -p "$tgtprofile" --quiet --output json folders list-members --path "$contentpath" --recursive | jq '.items[] | select (.type == "child" ) | .name' > "$tmpfile"
+                $admincli $insecopt -p "$tgtprofile" --quiet --output json folders list-members --path "$contentpath" --recursive | jq '.items[] | select (.type == "child" ) | .name' > "$tmpfile"
 
                if [ ! -s "$tmpfile" ]
                    then 
@@ -389,14 +383,14 @@ function impcheck {
                        sleep 60
                        echo "NOTE: Attempting (again) to get a list of objects in $contentpath."
             
-                      $admincli -p "$tgtprofile" --quiet --output json folders list-members --path "$contentpath" --recursive | jq '.items[] | select (.type == "child" ) | .name' > "$tmpfile"
+                      $admincli $insecopt -p "$tgtprofile" --quiet --output json folders list-members --path "$contentpath" --recursive | jq '.items[] | select (.type == "child" ) | .name' > "$tmpfile"
             RC=$?        
         fi
 
                 # Pull a list of objects from the source into an array
                 echo "NOTE: Pulling recursive list of members of $contentpath from source into an array."
                 IFS=$'\n'
-                mapfile -t srcarray < <($admincli -p "$srcprofile" --output json folders list-members --path "$contentpath" --recursive | jq '.items[] | select (.type == "child" ) | .name')
+                mapfile -t srcarray < <($admincli $insecopt -p "$srcprofile" --output json folders list-members --path "$contentpath" --recursive | jq '.items[] | select (.type == "child" ) | .name')
                 echo "NOTE: Found ${#srcarray[@]} child objects in the source path."
                 # For each object in the array (source), search for it in the target's text file.
                 echo "NOTE: Checking for each object present in source folder listing in the target."
@@ -445,9 +439,6 @@ function export {
     # If no output path is provided set it to /tmp, and confirm we can write to whatever output-path is.
     outputcheck
 
-    # Confirm we can use the admin cli.
-    sasadmcheck
-
     # Confirm the folder plugin is installed.
     plugin=folders; plugincheck
 
@@ -469,7 +460,7 @@ function export {
             fi
             # Get the name and folder IDs of the folders in the content path supplied.
             IFS=$'\n'
-            mapfile -t srcarray < <($admincli --output json -p "$srcprofile" folders list-members --path "$contentpath" | jq -r '.items[] | (.name + " " + .uri)' )
+            mapfile -t srcarray < <($admincli $insecopt --output json -p "$srcprofile" folders list-members --path "$contentpath" | jq -r '.items[] | (.name + " " + .uri)' )
     
             echo "NOTE: Found ${#srcarray[@]} objects in $contentpath."
     fi
@@ -582,72 +573,72 @@ function export {
                                 then
                                     # Check if the --expcheck flag was set. If so, run the export check function against the package that was downloaded.
                                     # If not, set expfail to zero skip the validation if --import is set.
-                                    if [ "$expcheck" = "1" ]
-                                        then
-                                        expfile=$efname
-                                        folderid=$fid
-                                        expcheck
-
-                                        # If retries is set and exportcheck failed, try to download it again until it succeeds or the number of retries is consumed.
-                                        if [ -n "$retries" ] && [ "$expfail" != "0" ]
+                                        if [ "$expcheck" = "1" ]
                                             then
-                                            # Confirm retries is a number.
-                                            re='^[0-9]+$'
-                                            if [[ $retries =~ $re ]]
+                                            expfile=$efname
+                                            folderid=$fid
+                                            expcheck
+
+                                            # If retries is set and exportcheck failed, try to download it again until it succeeds or the number of retries is consumed.
+                                            if [ -n "$retries" ] && [ "$expfail" != "0" ]
                                                 then
-                                                i=$retries
-                                                # try for the number of retries or until export is successful.
-                                                while [[ $i -ge 0 ]] && [ "$expfail" = "1" ]
-                                                    do
-                                                    echo "$(date +"%F %T %Z") NOTE: Retries set to $retries. Trying to export and download again. Attempt $i." >> "$exportdir/export.log"
+                                                # Confirm retries is a number.
+                                                re='^[0-9]+$'
+                                                if [[ $retries =~ $re ]]
+                                                    then
+                                                    i=$retries
+                                                    # try for the number of retries or until export is successful.
+                                                    while [[ $i -ge 0 ]] && [ "$expfail" = "1" ]
+                                                        do
+                                                        echo "$(date +"%F %T %Z") NOTE: Retries set to $retries. Trying to export and download again. Attempt $i." >> "$exportdir/export.log"
 
-                                                    # Create a new name for the export file.
-                                                    date=$(date +%F_%H%M%S)
-                                                    ename=${topname}_${fnns}_$date
-                                                    efname=$exportdir/$ename.json
+                                                        # Create a new name for the export file.
+                                                        date=$(date +%F_%H%M%S)
+                                                        ename=${topname}_${fnns}_$date
+                                                        efname=$exportdir/$ename.json
 
-                                                    # Try to download it again.
+                                                        # Try to download it again.
 
-                                                    exportdownload
+                                                        exportdownload
 
-                                                    # If the download succeeds, check the new file.
-                                                    if [ "$exportfail" = "0" ] && [ "$downfail" = "0" ]
-                                                        then
-                                                        expfile=$efname
-                                                        expcheck
-                                                    fi
-                                                    # Increment the loop
-                                                    i=$((i-1))
-                                                done
+                                                        # If the download succeeds, check the new file.
+                                                        if [ "$exportfail" = "0" ] && [ "$downfail" = "0" ]
+                                                            then
+                                                            expfile=$efname
+                                                            expcheck
+                                                        fi
+                                                        # Increment the loop
+                                                        i=$((i-1))
+                                                    done
+                                                fi
+
+                                            else
+                                            expfail=0
+                                        fi
+
+                                        # Check if --import is set. If so, check if the expcheck function set expfail to 1 indicating a problem with the package parentage.
+                                        # If not, import it by calling the import function.
+                                        if [ "$import" = "1" ]
+                                            then
+                                            if [ "$expfail" = "0" ]
+                                            then uploadandimport
                                             fi
+                                        fi
 
-                                        else
-                                        expfail=0
-                                    fi
-
-                                    # Check if --import is set. If so, check if the expcheck function set expfail to 1 indicating a problem with the package parentage.
-                                    # If not, import it by calling the import function.
-                                    if [ "$import" = "1" ]
-                                        then
-                                        if [ "$expfail" = "0" ]
-                                        then uploadandimport
+                                        # Check if --impcheck is set. If so, run the import check function against the source and destination for the import package's path.
+                                        # When complete, reset the contentpath variable to its original value so the loop can continue as expected.
+                                        
+                                        if [ "$impcheck" = "1" ]
+                                            then
+                                            oldcontpath="$contentpath"
+                                            contentpath="$contentpath/$fname"
+                                            impcheck
+                                            contentpath="$oldcontpath"
                                         fi
                                     fi
-
-                                    # Check if --impcheck is set. If so, run the import check function against the source and destination for the import package's path.
-                                    # When complete, reset the contentpath variable to its original value so the loop can continue as expected.
-                                    
-                                    if [ "$impcheck" = "1" ]
-                                        then
-                                        oldcontpath="$contentpath"
-                                        contentpath="$contentpath/$fname"
-                                        impcheck
-                                        contentpath="$oldcontpath"
-                                    fi
                                 else
-                                echo "ERROR: Export or download of $uri failed. Check ${efname%/*}/export.log for details."
-                                fail=1
-                                fi
+                                    echo "ERROR: Export or download of $uri failed. Check ${efname%/*}/export.log for details."
+                                    fail=1
                             fi
                         else
                         echo "ERROR: Source checking failed. Will not export $contentpath/$fname. Use --delete option to remove inaccessible members."
@@ -900,7 +891,7 @@ function uploadandimport {
     echo "$(date +"%F %T %Z") NOTE: Attempting to upload $efname to target." >> "${efname%/*}/import.log"
 
     # Upload the export package to the target environment, capturing the upload ID from the output.
-    impid=$($admincli --output json -p "$tgtprofile" transfer upload --file "$efname" | jq -r '.id' )
+    impid=$($admincli $insecopt --output json -p "$tgtprofile" transfer upload --file "$efname" | jq -r '.id' )
     RC=$?
     
     # If the command is successful, attempt to import the package.
@@ -912,7 +903,7 @@ function uploadandimport {
                 echo "NOTE: Upload complete. Attempting import."
                 echo "$(date +"%F %T %Z") NOTE: Upload completed. ID on target $impid." >> "${efname%/*}/import.log"
                 
-                $admincli --output json -p "$tgtprofile" transfer import --id "$impid"
+                $admincli $insecopt --output json -p "$tgtprofile" transfer import --id "$impid"
                 RC=$?
 
                 # If the import is successful, delete the uploaded package.
@@ -923,9 +914,8 @@ function uploadandimport {
                     echo "$(date +"%F %T %Z") NOTE: Import appears to have completed successfully." >> "${efname%/*}/import.log"
                     echo "NOTE: Removing imported package from the transfer service."
                     echo "$(date +"%F %T %Z") NOTE: Attempting to delete the uploaded package." >> "${efname%/*}/import.log"
-                    echo "y" | $admincli --output json -p "$tgtprofile" transfer delete --id "$impid"; echo ""
-                    RC=$?
-
+                    echo "y" | $admincli $insecopt --output json -p "$tgtprofile" transfer delete --id "$impid"; RC=$?; echo ""
+                    
                     # If the delete is successful, write success to stdout.
                     if [ "$RC" = "0" ]
                         then echo "NOTE: Removal complete."
@@ -967,7 +957,7 @@ function exportdownload {
     tmpfile=$(mktemp)
 
     # Export the package and capture the output to a file.
-    $admincli --output json -p "$srcprofile" transfer export --name "$ename" --resource-uri "$uri" > "$tmpfile"
+    $admincli $insecopt --output json -p "$srcprofile" transfer export --name "$ename" --resource-uri "$uri" > "$tmpfile" 2>&1
     RC=$?
 
     # Check if the output is blank, suggesting we encountered an issue connecting to the service. If so, wait a minute a try again (-s means if file exists and has a size greater than 0)
@@ -978,7 +968,7 @@ function exportdownload {
         sleep 60
         echo "NOTE: Attempting (again) to create export package for resource $uri."
         echo "$(date +"%F %T %Z") NOTE: Attempting (again) to create export package for resource $uri." >> "${efname%/*}/export.log"
-        $admincli --output json -p "$srcprofile" transfer export --name "$ename" --resource-uri "$uri" > "$tmpfile"
+        $admincli $insecopt --output json -p "$srcprofile" transfer export --name "$ename" --resource-uri "$uri" > "$tmpfile" 2>&1
         RC=$?        
     fi
 
@@ -1006,7 +996,7 @@ function exportdownload {
             echo "NOTE: Downloading to $efname."
             echo "$(date +"%F %T %Z") NOTE: Attempting to download $ename to $efname." >> "${efname%/*}/export.log"
             # Download the export package to the supplied directory with the name we generated.
-            $admincli --output json -p "$srcprofile" transfer download --id "$expid" --file "$efname"
+            $admincli $insecopt --output json -p "$srcprofile" transfer download --id "$expid" --file "$efname"
             RC=$?
 
             if [ "$RC" = "0" ]
@@ -1016,7 +1006,7 @@ function exportdownload {
 
                 # Delete the export from the source environment once it has been downloaded.
                 echo "NOTE: Deleting the export package from the source."
-                echo "y" | $admincli --output json -p "$srcprofile" transfer delete --id "$expid"; echo ""
+                echo "y" | $admincli $insecopt --output json -p "$srcprofile" transfer delete --id "$expid"; echo ""
                 else
                 echo "ERROR: Download attempt failed with return code $RC"
                 echo "$(date +"%F %T %Z") ERROR: Download of export $ename - $expid failed." >> "${efname%/*}/export.log"
@@ -1049,7 +1039,7 @@ function endpointexportdownload {
     # Build an export
 
     # Export the package and capture the output to a file.
-    $admincli --output json -p "$srcprofile" transfer export --request @"$package" > "$tmpfile"
+    $admincli $insecopt --output json -p "$srcprofile" transfer export --request @"$package" > "$tmpfile"  2>&1
     RC=$?
 
     # Check if the output is blank, suggesting we encountered an issue connecting to the service. If so, wait a minute a try again (-s means if file exists and has a size greater than 0)
@@ -1060,7 +1050,7 @@ function endpointexportdownload {
         sleep 60
         echo "NOTE: Attempting (again) to create export package for chunk $enum of endpoint $endpoint."
         echo "$(date +"%F %T %Z") NOTE: Attempting (again) to create export package for chunk $enum of endpoint $endpoint." >> "${efname%/*}/export.log"
-        $admincli --output json -p "$srcprofile" transfer export --request @"$package "> "$tmpfile"
+        $admincli $insecopt --output json -p "$srcprofile" transfer export --request @"$package "> "$tmpfile"  2>&1
         RC=$?        
     fi
 
@@ -1089,7 +1079,7 @@ function endpointexportdownload {
             echo "NOTE: Downloading to $efname."
             echo "$(date +"%F %T %Z") NOTE: Attempting to download $ename to $efname." >> "${efname%/*}/export.log"
             # Download the export package to the supplied directory with the name we generated.
-            $admincli --output json -p "$srcprofile" transfer download --id "$expid" --file "$efname"
+            $admincli $insecopt -output json -p "$srcprofile" transfer download --id "$expid" --file "$efname"
             RC=$?
 
             if [ "$RC" = "0" ]
@@ -1099,7 +1089,7 @@ function endpointexportdownload {
 
                 # Delete the export from the source environment once it has been downloaded.
                 echo "NOTE: Deleting the export package from the source."
-                echo "y" | $admincli --output json -p "$srcprofile" transfer delete --id "$expid"; echo ""
+                echo "y" | $admincli $insecopt --output json -p "$srcprofile" transfer delete --id "$expid"; echo ""
                 else
                 echo "ERROR: Download attempt failed with return code $RC"
                 echo "$(date +"%F %T %Z") ERROR: Download of export $ename - $expid failed." >> "${efname%/*}/export.log"
@@ -1120,9 +1110,6 @@ function endpointexportdownload {
 # Define a function "importfrompath" that builds $efname from a supplied path $imppath for upload and import function.
 # This will attempt against every .json file in the provided path.
 function importfrompath {
-
-# Confirm sas-admin is available.
-sasadmcheck
 
 # Confirm tgtprofile is set.
 var=tgtprofile; varcheck
@@ -1181,9 +1168,6 @@ echo "NOTE: Running source check to check for broken memberships prior to export
 var=contentpath; varcheck
 var=srcprofile; varcheck
 
-# Confirm sas-admin is available.
-sasadmcheck
-
 # Confirm folders plugin is available.
 plugin=folders; plugincheck
 
@@ -1203,7 +1187,7 @@ if [ "$isnull" = "1" ]
 
         # Get a list of child objects in the supplied folder into an temp file.
         srcchecktmp=$(mktemp)
-        $admincli --quiet --profile "$srcprofile" --output fulljson folders list-members --path "$contentpath" --recursive | jq -r '.items[] | select (.type == "child" )' > "$srcchecktmp"
+        $admincli $insecopt --quiet --profile "$srcprofile" --output fulljson folders list-members --path "$contentpath" --recursive | jq -r '.items[] | select (.type == "child" )' > "$srcchecktmp"
 
         # Check if the output is blank, suggesting we encountered an issue connecting to the service. If so, wait a minute a try again (-s means if file exists and has a size greater than 0)
         if [ ! -s "$srcchecktmp" ]
@@ -1212,7 +1196,7 @@ if [ "$isnull" = "1" ]
             sleep 60
             echo "NOTE: Attempting (again) to get a list of child objects in $contentpath."
             
-            $admincli --quiet --profile "$srcprofile" --output fulljson folders list-members --path "$contentpath" --recursive | jq -r '.items[] | select (.type == "child" )' > "$srcchecktmp"
+            $admincli $insecopt --quiet --profile "$srcprofile" --output fulljson folders list-members --path "$contentpath" --recursive | jq -r '.items[] | select (.type == "child" )' > "$srcchecktmp"
             RC=$?        
         fi
         
@@ -1279,7 +1263,7 @@ function jqcheck {
 
 # Define a function "sasadmcheck" to set admincli to the default path if it isn't supplied, and confirm it is executable.
 function sasadmcheck {
-
+    insecopt=""
     if [ -z "$admincli" ]
         then admincli=/opt/sas/viya/home/bin/sas-admin
     fi
@@ -1291,7 +1275,7 @@ function sasadmcheck {
     fi
     if [ "$insec" = "1" ]
     then
-        admincli="$admincli -k"
+        insecopt="-k"
     fi
 }
 
@@ -1357,7 +1341,7 @@ function authcheck {
         then 
         # Authenticate using the supplied profile.
         echo "Current token for sas-admin CLI on profile $profile is expired."
-        $admincli -p "$profile" auth login
+        $admincli $insecopt -p "$profile" auth login
         RC=$?
 
        if [ "$RC" != "0" ]
@@ -1373,6 +1357,7 @@ function authcheck {
 function varcheck {
     if [ -z "${!var}" ]
         then
+        usage
         case $var in
         srcprofile )    echo "ERROR: Source profile is not defined, use --src-profile to set this value."
                         exit 2
@@ -1398,8 +1383,6 @@ function varcheck {
 
         esac
 
-        usage
-        exit 2
     fi
 
     # If the variable being checked is a path, strip the trailing slash.
@@ -1419,9 +1402,6 @@ function getshortcuts {
     var=contentpath; varcheck
     var=srcprofile; varcheck
 
-    # Confirm sas-admin is available.
-    sasadmcheck
-
     # Confirm folders plugin is available.
     plugin=folders; plugincheck
 
@@ -1439,7 +1419,7 @@ function getshortcuts {
         tmpfile=$(mktemp)
 
         # Pull down all the members into the file.
-        $admincli --output fulljson -p "$srcprofile" folders list-members --path "$contentpath" --recursive > "$tmpfile"
+        $admincli $insecopt --output fulljson -p "$srcprofile" folders list-members --path "$contentpath" --recursive > "$tmpfile"
 
         # Check if the output is blank, suggesting we encountered an issue connecting to the service. If so, wait a minute a try again (-s means if file exists and has a size greater than 0)
         if [ ! -s "$tmpfile" ]
@@ -1448,7 +1428,7 @@ function getshortcuts {
             sleep 60
             echo "NOTE: Attempting (again) to get a list of objects in $contentpath."
             
-            $admincli --output fulljson -p "$srcprofile" folders list-members --path "$contentpath" --recursive > "$tmpfile"
+            $admincli $insecopt --output fulljson -p "$srcprofile" folders list-members --path "$contentpath" --recursive > "$tmpfile"
             RC=$?        
         fi
 
@@ -1478,7 +1458,7 @@ function pathcheck {
     tmpfile=$(mktemp)
     if [ -z "$folderid" ]
         then
-        $admincli --output fulljson -p "$profile" folders list-members --path "$contentpath" > "$tmpfile"
+        $admincli $insecopt --output fulljson -p "$profile" folders list-members --path "$contentpath" > "$tmpfile"
 
         # Check if the output is blank, suggesting we encountered an issue connecting to the service. If so, wait a minute a try again (-s means if file exists and has a size greater than 0)
         if [ ! -s "$tmpfile" ]
@@ -1487,11 +1467,11 @@ function pathcheck {
             sleep 60
             echo "NOTE: Attempting (again) to get a list of objects in $contentpath."
             
-            $admincli --output fulljson -p "$profile" folders list-members --path "$contentpath" > "$tmpfile"
+            $admincli $insecopt --output fulljson -p "$profile" folders list-members --path "$contentpath" > "$tmpfile"
             RC=$?        
         fi
         else
-        $admincli --output fulljson -p "$profile" folders list-members --id "$folderid" > "$tmpfile"
+        $admincli $insecopt --output fulljson -p "$profile" folders list-members --id "$folderid" > "$tmpfile"
         # Check if the output is blank, suggesting we encountered an issue connecting to the service. If so, wait a minute a try again (-s means if file exists and has a size greater than 0)
         if [ ! -s "$tmpfile" ]
             then 
@@ -1499,7 +1479,7 @@ function pathcheck {
             sleep 60
             echo "NOTE: Attempting (again) to get a list of objects in $contentpath."
             
-            $admincli --output fulljson -p "$profile" folders list-members --id "$folderid" > "$tmpfile"
+            $admincli $insecopt --output fulljson -p "$profile" folders list-members --id "$folderid" > "$tmpfile"
             RC=$?        
         fi
     fi
@@ -1532,32 +1512,38 @@ fi
 # If only expcheck is set, run its function directly.
 if [ "$expcheck" = "1" ] && [ -z "$import" ] && [ -z "$export" ] && [ -z "$impcheck" ] # --expcheck only
     then
+    sasadmcheck
     expcheck
 
 # If only impcheck is set, run its function directly.
 elif [ -z "$expcheck" ] && [ -z "$import" ] && [ -z "$export" ] && [ "$impcheck" = "1" ] # --impcheck only
     then
+    sasadmcheck
     impcheck
 
 # If export is set then run it. That function has code to handle the presence of the checking and import options.
 
 elif [ "$export" = "1" ]
     then 
+    sasadmcheck
     export
 
 # If import is set and export isn't, we need to import from a supplied path using the importfrompath function.
 elif [ "$import" = "1" ] && [ -n "$imppath" ] && [ -z "$export" ]
     then 
+    sasadmcheck
     importfrompath
 
 # If only srccheck is set, run its function directly.
 elif [ "$srccheck" = "1" ] && [ -z "$import" ] && [ -z "$export" ] && [ -z "$impcheck" ] # --srccheck only
     then
+    sasadmcheck
     sourcecheck
 
 # If only shortcutcheck is set, run its function directly.
 elif [ "$shortcutcheck" = "1" ] && [ -z "$import" ] && [ -z "$export" ] && [ -z "$impcheck" ] && [ -z "$expcheck" ]
     then
+    sasadmcheck
     getshortcuts
 
 # If any other combination is defined indicate as such to stdout.
