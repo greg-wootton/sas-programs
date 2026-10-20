@@ -1,6 +1,9 @@
 # sas-programs
 Public repository for programs to interact with SAS 9 and SAS Viya administratively.
 
+Note: This repository is no longer maintained. Recommend using the official SAS Technical Support github repository here: 
+[SAS Technical Support GitHub Repository](https://github.com/sascommunities/technical-support-code) which contains much of the same code.
+
 This repository is divided into folders based on the type of activity.
 ## Libraries and Databases
 - These programs pull information on libraries and databases defined in Metadata and their associated tables and columns.
